@@ -1,33 +1,113 @@
-import React,{useRef,Suspense}from'react';import{Canvas,useFrame}from'@react-three/fiber';import{OrbitControls}from'@react-three/drei';import{EffectComposer,Bloom}from'@react-three/postprocessing';import{motion}from'framer-motion';import*as THREE from'three';import{useGameStore}from'../store/gameStore';import{useNavigate}from'react-router-dom';
-const CARS=[{id:'red',name:'VIPER GT',color:'#ff3366',stats:{speed:95,handling:70,accel:85}},{id:'blue',name:'PHANTOM X',color:'#00f5ff',stats:{speed:80,handling:95,accel:75}},{id:'green',name:'APEX SR',color:'#00ff88',stats:{speed:75,handling:80,accel:95}},{id:'gold',name:'TITAN V8',color:'#ffd700',stats:{speed:90,handling:65,accel:80}},{id:'purple',name:'GHOST R',color:'#cc44ff',stats:{speed:85,handling:90,accel:70}}];
-const TRACKS=[{id:'circuit_1',name:'NEON CIRCUIT',desc:'High-speed straights'},{id:'circuit_2',name:'NIGHT CITY',desc:'Tight urban corners'}];
-function PreviewCar({color}){const g=useRef();const cc=new THREE.Color(color);useFrame(st=>{if(g.current)g.current.rotation.y=st.clock.elapsedTime*.5;});return(<group ref={g}><mesh><boxGeometry args={[1.8,.35,3.8]}/><meshStandardMaterial color={cc} metalness={.9} roughness={.1}/></mesh><mesh position={[0,.45,.2]}><boxGeometry args={[1.4,.4,1.8]}/><meshStandardMaterial color={cc} metalness={.7} roughness={.15}/></mesh><mesh position={[0,.55,.9]}><boxGeometry args={[1.35,.35,.05]}/><meshPhysicalMaterial color="#88ddff" transparent opacity={.6}/></mesh>{[[-1,-.2,1.3],[1,-.2,1.3],[-1,-.2,-1.3],[1,-.2,-1.3]].map(([x,y,z],i)=>(<group key={i} position={[x,y,z]}><mesh rotation={[0,0,Math.PI/2]}><cylinderGeometry args={[.3,.3,.24,16]}/><meshStandardMaterial color="#1a1a1a"/></mesh></group>))}</group>);}
-export default function Garage(){
-  const{selectedCar,setSelectedCar,selectedTrack,setSelectedTrack}=useGameStore();const nav=useNavigate();
-  const cur=CARS.find(c=>c.id===selectedCar)||CARS[0];
-  return(<div style={{width:'100%',height:'100%',display:'flex',background:'var(--dark)',overflow:'hidden'}}>
-    <div style={{flex:1,display:'flex',flexDirection:'column'}}>
-      <div style={{padding:'16px 24px',borderBottom:'1px solid var(--border)'}}><span className="orb nred" style={{fontSize:18,fontWeight:900}}>🔧 GARAGE</span></div>
-      <div style={{flex:1,position:'relative'}}>
-        <Canvas camera={{position:[0,2,6],fov:50}}><Suspense fallback={null}>
-          <ambientLight intensity={.5}/><pointLight position={[5,5,5]} intensity={2} color={cur.color}/><pointLight position={[-5,3,-5]} intensity={1} color="#4488ff"/>
-          <PreviewCar color={cur.color}/><OrbitControls enableZoom={false}/>
-          <EffectComposer><Bloom luminanceThreshold={.5} intensity={1.5}/></EffectComposer>
-        </Suspense></Canvas>
-        <div style={{position:'absolute',bottom:20,left:0,right:0,textAlign:'center'}}>
-          <div className="orb" style={{fontSize:20,fontWeight:900,color:cur.color}}>{cur.name}</div>
-          <div style={{display:'flex',justifyContent:'center',gap:24,marginTop:12}}>
-            {Object.entries(cur.stats).map(([k,v])=>(<div key={k} style={{textAlign:'center'}}><div style={{fontFamily:'Orbitron',fontSize:9,color:'var(--dim)',marginBottom:4}}>{k.toUpperCase()}</div><div style={{width:80,height:4,background:'var(--border)',borderRadius:2}}><div style={{height:'100%',width:`${v}%`,background:cur.color}}/></div><div style={{fontFamily:'Orbitron',fontSize:10,color:cur.color,marginTop:2}}>{v}</div></div>))}
-          </div>
-        </div>
+import { useState, useRef } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls, Environment } from '@react-three/drei';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../store/authStore';
+import { api } from '../utils/api';
+import * as THREE from 'three';
+
+const CARS = [
+  { id: 'red',    label: 'INFERNO',   color: '#ff2244', accent: '#ff6600', speed: 92, handling: 78, boost: 85 },
+  { id: 'blue',   label: 'PHANTOM',   color: '#2266ff', accent: '#00ccff', speed: 80, handling: 95, boost: 88 },
+  { id: 'green',  label: 'VIPER',     color: '#00cc44', accent: '#aaff00', speed: 85, handling: 88, boost: 80 },
+  { id: 'gold',   label: 'SOVEREIGN', color: '#ffcc00', accent: '#ff9900', speed: 75, handling: 82, boost: 95 },
+  { id: 'purple', label: 'SPECTRE',   color: '#9922ff', accent: '#ff44cc', speed: 88, handling: 90, boost: 82 },
+];
+
+function CarModel({ color, accent }) {
+  const ref = useRef();
+  useFrame((_, dt) => { if (ref.current) ref.current.rotation.y += dt * 0.4; });
+  return (
+    <group ref={ref}>
+      <mesh position={[0, 0.15, 0]} castShadow>
+        <boxGeometry args={[1.8, 0.28, 0.9]} />
+        <meshStandardMaterial color={color} metalness={0.9} roughness={0.15} />
+      </mesh>
+      <mesh position={[0.1, 0.38, 0]} castShadow>
+        <boxGeometry args={[0.9, 0.22, 0.75]} />
+        <meshStandardMaterial color={color} metalness={0.7} roughness={0.2} />
+      </mesh>
+      {[[-0.65,-0.08,0.52],[0.65,-0.08,0.52],[-0.65,-0.08,-0.52],[0.65,-0.08,-0.52]].map(([x,y,z],i) => (
+        <mesh key={i} position={[x,y,z]} rotation={[Math.PI/2,0,0]}>
+          <cylinderGeometry args={[0.18,0.18,0.12,24]} />
+          <meshStandardMaterial color="#111" metalness={0.6} roughness={0.4} />
+        </mesh>
+      ))}
+      <mesh position={[0.92, 0.15, 0]}>
+        <boxGeometry args={[0.04, 0.08, 0.6]} />
+        <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={1.2} />
+      </mesh>
+      <mesh position={[-0.93, 0.15, 0]}>
+        <boxGeometry args={[0.04, 0.06, 0.4]} />
+        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={2} />
+      </mesh>
+    </group>
+  );
+}
+
+function StatBar({ label, value }) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#aaa', marginBottom:4 }}>
+        <span>{label}</span><span style={{ color:'var(--cyan)' }}>{value}</span>
+      </div>
+      <div style={{ height:4, background:'#1a1a2e', borderRadius:2 }}>
+        <div style={{ height:'100%', width:`${value}%`, background:'linear-gradient(90deg,var(--cyan),var(--red))', borderRadius:2, transition:'width 0.5s' }} />
       </div>
     </div>
-    <div style={{width:320,borderLeft:'1px solid var(--border)',display:'flex',flexDirection:'column',overflow:'auto'}}>
-      <div style={{padding:'16px 20px',borderBottom:'1px solid var(--border)'}}><div className="orb" style={{fontSize:12,color:'var(--dim)',letterSpacing:'.15em'}}>SELECT CAR</div></div>
-      <div style={{padding:12,display:'flex',flexDirection:'column',gap:8}}>{CARS.map(c=>(<motion.button key={c.id} whileHover={{scale:1.02}} whileTap={{scale:.98}} onClick={()=>setSelectedCar(c.id)} style={{padding:'14px 16px',background:selectedCar===c.id?`${c.color}22`:'rgba(255,255,255,.03)',border:`1px solid ${selectedCar===c.id?c.color:'var(--border)'}`,cursor:'pointer',display:'flex',alignItems:'center',gap:12}}><div style={{width:16,height:16,borderRadius:'50%',background:c.color,boxShadow:`0 0 8px ${c.color}`}}/><span style={{fontFamily:'Orbitron',fontSize:12,fontWeight:700,color:selectedCar===c.id?c.color:'var(--text)'}}>{c.name}</span></motion.button>))}</div>
-      <div style={{padding:'16px 20px',borderTop:'1px solid var(--border)',borderBottom:'1px solid var(--border)'}}><div className="orb" style={{fontSize:12,color:'var(--dim)',letterSpacing:'.15em'}}>SELECT TRACK</div></div>
-      <div style={{padding:12,display:'flex',flexDirection:'column',gap:8}}>{TRACKS.map(t=>(<motion.button key={t.id} whileHover={{scale:1.02}} whileTap={{scale:.98}} onClick={()=>setSelectedTrack(t.id)} style={{padding:'14px 16px',background:selectedTrack===t.id?'rgba(255,51,102,.15)':'rgba(255,255,255,.03)',border:`1px solid ${selectedTrack===t.id?'var(--red)':'var(--border)'}`,cursor:'pointer',textAlign:'left'}}><div style={{fontFamily:'Orbitron',fontSize:12,fontWeight:700,color:selectedTrack===t.id?'var(--red)':'var(--text)'}}>{t.name}</div><div style={{fontSize:12,color:'var(--dim)',marginTop:2}}>{t.desc}</div></motion.button>))}</div>
-      <div style={{padding:16,marginTop:'auto'}}><button className="btn btn-p" onClick={()=>nav('/game')} style={{width:'100%',padding:14,fontSize:13}}>🏎️ RACE NOW</button></div>
+  );
+}
+
+export default function Garage() {
+  const [selected, setSelected] = useState(0);
+  const { user, setUser } = useAuthStore();
+  const navigate = useNavigate();
+  const car = CARS[selected];
+
+  const handleSelect = async () => {
+    try {
+      const res = await api.put('/users/me', { car_skin: car.id });
+      setUser(res.data);
+    } catch {}
+    navigate('/game');
+  };
+
+  return (
+    <div style={{ minHeight:'100vh', background:'var(--dark)', display:'flex', flexDirection:'column', alignItems:'center', padding:'80px 20px 40px' }}>
+      <h1 style={{ fontFamily:'Orbitron,sans-serif', fontSize:28, letterSpacing:6, marginBottom:8 }}>GARAGE</h1>
+      <p style={{ color:'#666', fontSize:12, marginBottom:32 }}>SELECT YOUR MACHINE</p>
+
+      <div style={{ display:'flex', gap:12, marginBottom:32, flexWrap:'wrap', justifyContent:'center' }}>
+        {CARS.map((c, i) => (
+          <button key={c.id} onClick={() => setSelected(i)}
+            style={{ background: i===selected ? c.color+'33' : '#0a0a1a', border:`2px solid ${i===selected ? c.color : '#222'}`, borderRadius:8, padding:'8px 16px', cursor:'pointer', color: i===selected ? c.color : '#555', fontFamily:'Orbitron,sans-serif', fontSize:10, letterSpacing:2, transition:'all 0.2s' }}>
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ width:'100%', maxWidth:600, height:300, borderRadius:16, overflow:'hidden', border:`1px solid ${car.color}44`, marginBottom:32 }}>
+        <Canvas camera={{ position:[0,1.2,3.5], fov:45 }} shadows>
+          <ambientLight intensity={0.4} />
+          <directionalLight position={[5,8,5]} intensity={1.5} castShadow />
+          <pointLight position={[-3,2,0]} color={car.accent} intensity={2} />
+          <CarModel color={car.color} accent={car.accent} />
+          <OrbitControls enablePan={false} enableZoom={false} autoRotate={false} />
+          <Environment preset="night" />
+        </Canvas>
+      </div>
+
+      <div style={{ width:'100%', maxWidth:400, background:'#0a0a1a', borderRadius:12, padding:24, border:`1px solid ${car.color}33`, marginBottom:32 }}>
+        <h2 style={{ fontFamily:'Orbitron,sans-serif', fontSize:20, color:car.color, marginBottom:20, letterSpacing:4 }}>{car.label}</h2>
+        <StatBar label="TOP SPEED" value={car.speed} />
+        <StatBar label="HANDLING" value={car.handling} />
+        <StatBar label="BOOST" value={car.boost} />
+      </div>
+
+      <button onClick={handleSelect}
+        style={{ background:`linear-gradient(135deg,${car.color},${car.accent})`, border:'none', borderRadius:8, padding:'14px 48px', color:'#000', fontFamily:'Orbitron,sans-serif', fontSize:14, letterSpacing:4, cursor:'pointer', fontWeight:700 }}>
+        RACE WITH THIS CAR
+      </button>
     </div>
-  </div>);
+  );
 }
