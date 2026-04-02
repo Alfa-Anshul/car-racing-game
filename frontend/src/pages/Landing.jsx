@@ -1,26 +1,63 @@
-import React,{useEffect,useRef}from'react';import{useNavigate}from'react-router-dom';import{motion}from'framer-motion';import{useAuthStore}from'../store/authStore';
-export default function Landing(){
-  const nav=useNavigate();const{token}=useAuthStore();const cvs=useRef();
-  useEffect(()=>{if(token){nav('/game');return;}
-    const c=cvs.current;if(!c)return;const ctx=c.getContext('2d');c.width=window.innerWidth;c.height=window.innerHeight;
-    const pts=Array.from({length:100},()=>({x:Math.random()*c.width,y:Math.random()*c.height,vx:(Math.random()-.5)*.4,vy:(Math.random()-.5)*.4,r:Math.random()*2+.5,a:Math.random()*.6+.2,col:Math.random()>.5?'#ff3366':'#00f5ff'}));
-    let raf;const draw=()=>{ctx.fillStyle='rgba(10,10,15,.15)';ctx.fillRect(0,0,c.width,c.height);
-      pts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=c.width;if(p.x>c.width)p.x=0;if(p.y<0)p.y=c.height;if(p.y>c.height)p.y=0;
-        ctx.save();ctx.globalAlpha=p.a;ctx.fillStyle=p.col;ctx.shadowColor=p.col;ctx.shadowBlur=8;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.restore();});
-      raf=requestAnimationFrame(draw);};draw();return()=>cancelAnimationFrame(raf);},[token]);
-  return(<div style={{width:'100vw',height:'100vh',position:'relative',overflow:'hidden',background:'#0a0a0f'}}>
-    <canvas ref={cvs} style={{position:'absolute',inset:0}}/>
-    <div style={{position:'absolute',inset:0,backgroundImage:'linear-gradient(rgba(255,51,102,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,245,255,.02) 1px,transparent 1px)',backgroundSize:'60px 60px',pointerEvents:'none'}}/>
-    <div style={{position:'relative',zIndex:10,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:32}}>
-      <motion.div initial={{opacity:0,y:-40}} animate={{opacity:1,y:0}} transition={{duration:.8}} style={{textAlign:'center'}}>
-        <div className="orb" style={{fontSize:'clamp(52px,9vw,100px)',fontWeight:900,lineHeight:1}}><span className="nred">TURBO</span><span className="ncyan">RACE</span></div>
-        <div style={{fontFamily:'Rajdhani',fontSize:15,letterSpacing:'.4em',color:'var(--dim)',textTransform:'uppercase',marginTop:8}}>WebGL · Shaders · Live</div>
-      </motion.div>
-      <motion.div initial={{opacity:0}} animate={{opacity:1}} transition={{delay:.5}} style={{display:'flex',gap:16}}>
-        <motion.button whileHover={{scale:1.05}} whileTap={{scale:.95}} className="btn btn-p" onClick={()=>nav('/auth')} style={{fontSize:15,padding:'16px 44px'}}>START ENGINE</motion.button>
-        <motion.button whileHover={{scale:1.05}} whileTap={{scale:.95}} className="btn btn-s" onClick={()=>nav('/leaderboard')} style={{padding:'16px 32px'}}>LEADERBOARD</motion.button>
-      </motion.div>
+import { useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../store/authStore';
+
+export default function Landing() {
+  const canvasRef = useRef();
+  const navigate = useNavigate();
+  const { token } = useAuthStore();
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    let w = canvas.width = window.innerWidth;
+    let h = canvas.height = window.innerHeight;
+    const particles = Array.from({ length: 120 }, () => ({
+      x: Math.random() * w, y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 0.6, vy: (Math.random() - 0.5) * 0.6,
+      r: Math.random() * 1.5 + 0.3,
+      color: ['#ff2244','#00ccff','#ffcc00'][Math.floor(Math.random()*3)]
+    }));
+    let raf;
+    const draw = () => {
+      ctx.clearRect(0,0,w,h);
+      particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
+        if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+        ctx.fillStyle = p.color + 'aa';
+        ctx.fill();
+      });
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+    const resize = () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; };
+    window.addEventListener('resize', resize);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
+  }, []);
+
+  return (
+    <div style={{ position:'relative', height:'100vh', overflow:'hidden', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+      <canvas ref={canvasRef} style={{ position:'absolute', inset:0, zIndex:0 }} />
+      <div style={{ position:'relative', zIndex:1, textAlign:'center', padding:'0 20px' }}>
+        <div style={{ fontSize:11, letterSpacing:8, color:'var(--red)', fontFamily:'Orbitron,sans-serif', marginBottom:16 }}>ANERVEA PRESENTS</div>
+        <h1 style={{ fontFamily:'Orbitron,sans-serif', fontSize:'clamp(40px,10vw,96px)', fontWeight:900, letterSpacing:8, lineHeight:1, marginBottom:8,
+          background:'linear-gradient(135deg,#fff 0%,var(--cyan) 40%,var(--red) 100%)',
+          WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>TURBORACE</h1>
+        <p style={{ color:'#555', fontSize:13, letterSpacing:4, marginBottom:48 }}>3D MULTIPLAYER RACING — BUILT WITH AI</p>
+        <div style={{ display:'flex', gap:16, justifyContent:'center', flexWrap:'wrap' }}>
+          <button onClick={() => navigate(token ? '/game' : '/auth')}
+            style={{ background:'linear-gradient(135deg,var(--red),var(--cyan))', border:'none', borderRadius:8, padding:'16px 40px', color:'#000', fontFamily:'Orbitron,sans-serif', fontSize:14, letterSpacing:4, cursor:'pointer', fontWeight:700 }}>
+            {token ? 'CONTINUE RACING' : 'START RACING'}
+          </button>
+          <button onClick={() => navigate('/leaderboard')}
+            style={{ background:'transparent', border:'1px solid var(--cyan)', borderRadius:8, padding:'16px 40px', color:'var(--cyan)', fontFamily:'Orbitron,sans-serif', fontSize:14, letterSpacing:4, cursor:'pointer' }}>
+            LEADERBOARD
+          </button>
+        </div>
+      </div>
     </div>
-    <div style={{position:'absolute',bottom:20,width:'100%',textAlign:'center',fontFamily:'Orbitron',fontSize:9,color:'rgba(255,255,255,.15)',letterSpacing:'.25em'}}>car.anervea.live</div>
-  </div>);
+  );
 }
