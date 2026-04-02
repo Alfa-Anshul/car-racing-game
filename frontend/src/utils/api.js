@@ -1,16 +1,4 @@
-import axios from 'axios';
-
-const BASE = import.meta.env.VITE_API_URL || '/api';
-
-const api = axios.create({ baseURL: BASE });
-
-api.interceptors.request.use((config) => {
-  try {
-    const stored = JSON.parse(localStorage.getItem('racing-auth') || '{}');
-    const token = stored?.state?.token;
-    if (token) config.headers.Authorization = `Bearer ${token}`;
-  } catch {}
-  return config;
-});
-
+import axios from'axios';
+const api=axios.create({baseURL:import.meta.env.VITE_API_URL||'/api'});
+api.interceptors.request.use(c=>{try{const s=JSON.parse(localStorage.getItem('racing-auth')||'{}');const t=s?.state?.token;if(t)c.headers.Authorization=`Bearer ${t}`;}catch{}return c;});
 export default api;
