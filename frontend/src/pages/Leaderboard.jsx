@@ -1,25 +1,70 @@
-import React,{useEffect,useState}from'react';import{motion}from'framer-motion';import api from'../utils/api';
-export default function Leaderboard(){
-  const[rows,setRows]=useState([]);const[load,setLoad]=useState(true);
-  useEffect(()=>{api.get('/leaderboard/').then(r=>setRows(r.data)).catch(()=>{}).finally(()=>setLoad(false));},[]);
-  const medals=['🥇','🥈','🥉'];
-  const fmt=s=>s?`${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toFixed(2).padStart(5,'0')}`:'--:--';
-  return(<div style={{width:'100%',height:'100%',overflow:'auto',padding:32}}><div style={{maxWidth:860,margin:'0 auto'}}>
-    <motion.div initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} style={{textAlign:'center',marginBottom:32}}>
-      <div className="orb nred" style={{fontSize:36,fontWeight:900}}>🏆 LEADERBOARD</div>
-      <div style={{color:'var(--dim)',fontSize:15,marginTop:4}}>Global Rankings</div>
-    </motion.div>
-    {load?<div style={{textAlign:'center',fontFamily:'Orbitron',fontSize:13,color:'var(--cyan)',animation:'pulse 1s infinite'}}>LOADING...</div>:
-      rows.length===0?<div style={{textAlign:'center',fontFamily:'Orbitron',fontSize:13,color:'var(--dim)',marginTop:40}}>No races yet. Be first!</div>:
-      <div style={{display:'flex',flexDirection:'column',gap:8}}>{rows.map((r,i)=>(
-        <motion.div key={r.username} initial={{opacity:0,x:-20}} animate={{opacity:1,x:0}} transition={{delay:i*.04}} className="glass" style={{padding:'16px 24px',display:'flex',alignItems:'center',gap:20,border:`1px solid ${i===0?'rgba(255,215,0,.3)':i===1?'rgba(192,192,192,.3)':i===2?'rgba(205,127,50,.3)':'var(--border)'}`}}>
-          <div style={{width:40,textAlign:'center',fontFamily:'Orbitron',fontSize:i<3?22:14,fontWeight:900,color:['var(--gold)','#c0c0c0','#cd7f32','var(--dim)'][Math.min(i,3)]}}>{i<3?medals[i]:i+1}</div>
-          <div style={{flex:1}}><div style={{fontFamily:'Orbitron',fontSize:15,fontWeight:700}}>{r.username}</div><div style={{fontSize:11,color:'var(--dim)',marginTop:2}}>{r.total_races} races</div></div>
-          <div style={{display:'flex',gap:32,textAlign:'center'}}>
-            <div><div style={{fontFamily:'Orbitron',fontSize:9,color:'var(--dim)'}}>SCORE</div><div style={{fontFamily:'Orbitron',fontSize:18,color:'var(--red)',fontWeight:700}}>{r.total_score}</div></div>
-            <div><div style={{fontFamily:'Orbitron',fontSize:9,color:'var(--dim)'}}>BEST LAP</div><div style={{fontFamily:'Orbitron',fontSize:14,color:'var(--cyan)'}}>{fmt(r.best_lap)}</div></div>
+import { useEffect, useState } from 'react';
+import { api } from '../utils/api';
+import { useAuthStore } from '../store/authStore';
+
+function formatTime(sec) {
+  if (!sec) return '--:--';
+  const m = Math.floor(sec / 60);
+  const s = (sec % 60).toFixed(2).padStart(5,'0');
+  return `${m}:${s}`;
+}
+
+const MEDALS = ['🥇','🥈','🥉'];
+
+export default function Leaderboard() {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuthStore();
+
+  useEffect(() => {
+    api.get('/leaderboard/').then(r => setEntries(r.data)).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div style={{ minHeight:'100vh', background:'var(--dark)', padding:'80px 20px 40px' }}>
+      <div style={{ maxWidth:800, margin:'0 auto' }}>
+        <div style={{ textAlign:'center', marginBottom:40 }}>
+          <h1 style={{ fontFamily:'Orbitron,sans-serif', fontSize:28, letterSpacing:6, marginBottom:8 }}>LEADERBOARD</h1>
+          <p style={{ color:'#555', fontSize:12, letterSpacing:2 }}>TOP RACERS WORLDWIDE</p>
+        </div>
+
+        {loading ? (
+          <p style={{ textAlign:'center', color:'#333', fontFamily:'Orbitron,sans-serif' }}>LOADING...</p>
+        ) : (
+          <div style={{ background:'#0a0a1a', borderRadius:16, overflow:'hidden', border:'1px solid #1a1a2e' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse' }}>
+              <thead>
+                <tr style={{ background:'#111' }}>
+                  {['RANK','DRIVER','SCORE','WINS','BEST LAP'].map(h => (
+                    <th key={h} style={{ padding:'14px 20px', textAlign:'left', fontFamily:'Orbitron,sans-serif', fontSize:10, letterSpacing:2, color:'#555' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {entries.length === 0 ? (
+                  <tr><td colSpan={5} style={{ padding:48, textAlign:'center', color:'#333', fontFamily:'Orbitron,sans-serif', fontSize:12 }}>NO RACERS YET. BE THE FIRST.</td></tr>
+                ) : entries.map((e, i) => {
+                  const isMe = user?.username === e.username;
+                  return (
+                    <tr key={i} style={{ borderTop:'1px solid #0f0f1f', background: isMe ? '#001a2e' : 'transparent', transition:'background 0.2s' }}>
+                      <td style={{ padding:'14px 20px', fontFamily:'Orbitron,sans-serif', fontSize:18 }}>
+                        {i < 3 ? MEDALS[i] : <span style={{ color:'#333' }}>#{i+1}</span>}
+                      </td>
+                      <td style={{ padding:'14px 20px' }}>
+                        <span style={{ fontFamily:'Orbitron,sans-serif', fontSize:13, color: isMe ? 'var(--cyan)' : '#ccc' }}>{e.username}</span>
+                        {isMe && <span style={{ marginLeft:8, fontSize:9, color:'var(--cyan)', letterSpacing:2 }}>YOU</span>}
+                      </td>
+                      <td style={{ padding:'14px 20px', fontFamily:'Orbitron,sans-serif', color:'var(--gold)', fontSize:14 }}>{e.high_score || 0}</td>
+                      <td style={{ padding:'14px 20px', color:'#aaa', fontSize:13 }}>{e.wins || 0}</td>
+                      <td style={{ padding:'14px 20px', fontFamily:'Orbitron,sans-serif', color:'var(--red)', fontSize:13 }}>{formatTime(e.best_lap_time)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        </motion.div>))}
-      </div>}
-  </div></div>);
+        )}
+      </div>
+    </div>
+  );
 }
